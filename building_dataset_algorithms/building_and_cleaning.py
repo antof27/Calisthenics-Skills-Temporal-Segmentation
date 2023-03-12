@@ -1,4 +1,3 @@
-#how to extract data froma a local json and save it to a csv file
 import json
 import csv
 import glob
@@ -33,7 +32,7 @@ with open('dataset.csv', 'w') as f:
                                 'RBigToeX', 'RBigToeY', 'RBigToeC',
                                 'RSmallToeX', 'RSmallToeY', 'RSmallToeC',
                                 'RHeelX', 'RHeelY', 'RHeelC',
-                                'nome_video', 'frame_video', 'skill_id'])
+                                'video_name', 'video_frame', 'skill_id'])
     
 
 
@@ -42,23 +41,28 @@ def natural_sort(l):
     convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(l, key = alphanum_key)
-
-zeros_frames_counter = 0
-total_frames_counter = 0
+print("Starting the script...")
+zeros_keypoints_counter = 0
+total_keypoints_counter = 0
 dataframe_local = pd.DataFrame()
-
 percentage = 0.5
-print("La percentuale di keypoints minima per video è settata a : {} %".format(percentage * 100))
+print("Minimum keypoints number threshold set to : {} %".format(percentage * 100))
+global_frame_counter = 0
+global_video_counter = 0
+frame_counter = 0
+excluded_videos = []
+excluded_videos_frames = 0
 
-
-for i, folder in enumerate(glob.glob("/home/coloranto/Desktop/test/openpose/output/json/*")):
+#reading all the json files
+input_json_folder = "/home/coloranto/Desktop/test/openpose/output/json/*"
+print("Reading the json files from the folder : ", input_json_folder)
+for i, folder in enumerate(glob.glob(input_json_folder)):
     
+    #sorting frames basing on the name
     folder = natural_sort(glob.glob(folder + "/*"))
-    
+    global_video_counter += 1
     for file in folder:
         
-        #print(file)
-
         with open(file) as f:
             data = json.load(f)
         
@@ -70,36 +74,36 @@ for i, folder in enumerate(glob.glob("/home/coloranto/Desktop/test/openpose/outp
         #from the name of the file extract the name of the video and the frame
         name = file.split("/")[-1]
         name = name.split("_")
-        nome_video = name[0]
+        video_name = name[0]
         
         #extract the frame number without the 0 at the beginning
 
+        frame_counter += 1
 
         #zeros check
-        
-
         for i in range(len(keypoints)):
             if keypoints[i] == 0:
-                zeros_frames_counter += 1
-            total_frames_counter += 1
+                zeros_keypoints_counter += 1
+            total_keypoints_counter += 1
 
        
         
 
-        frame_video = name[1]
-        frame_video = frame_video.lstrip("0")
-        if frame_video == "":
-            frame_video = 0
+        video_frame = name[1]
+        video_frame = video_frame.lstrip("0")
+        if video_frame == "":
+            video_frame = 0
 
-        frame_video = int(frame_video)
+        video_frame = int(video_frame)
 
-        keypoints.append(nome_video)
-        keypoints.append(frame_video)
+        keypoints.append(video_name)
+        keypoints.append(video_frame)
         
-        #print("keypoints vale: ", keypoints)
+        
 
-        #comparing the labels using the id of the video
-
+#---------------------------------------------------------------------------------------------------------------------
+#comparing the labels using the id of the video
+#labels filling...
         with open('dataset_video.csv', 'r') as f:
             reader = csv.reader(f)
             next(reader)
@@ -108,8 +112,8 @@ for i, folder in enumerate(glob.glob("/home/coloranto/Desktop/test/openpose/outp
                 #print(row)
 
 
-                #print("Compare ", nome_video, " with ", row[6])
-                if nome_video == row[6] and frame_video >= int(row[3]) and frame_video <= int(row[4]):
+                #print("Compare ", video_name, " with ", row[6])
+                if video_name == row[6] and video_frame >= int(row[3]) and video_frame <= int(row[4]):
                     #print("Sono uguali")
                     keypoints.append(row[5])
                     sem = True
@@ -117,23 +121,34 @@ for i, folder in enumerate(glob.glob("/home/coloranto/Desktop/test/openpose/outp
             
             if sem == False:
                 keypoints.append("none")
+#---------------------------------------------------------------------------------------------------------------------
+#Videos filtering algorithm
 
         dataframe_local = dataframe_local.append(pd.DataFrame([keypoints]), ignore_index=True)    
            # print(keypoints)
         #write the keypoints in the csv file
-        
-    print("Processing the video... : ", nome_video)
-    print("Total zeros frames : ", zeros_frames_counter)
-    print("Total frames : ", total_frames_counter)
-    if total_frames_counter == 0:
-        print("The current video has no frames!", nome_video)
+
+    global_frame_counter += frame_counter    
+    print("Processing the video... : ", video_name)
+    print("Total zeros keypoints : ", zeros_keypoints_counter)
+    print("Total keypoints : ", total_keypoints_counter)
+    print("Video frames : ", frame_counter)
+
+    if total_keypoints_counter == 0:
+        print("The current video has no frames!", video_name)
     else:    
-        rate = zeros_frames_counter / total_frames_counter
-    print("Zeros percentage : {} %".format(rate * 100))
+        rate = zeros_keypoints_counter / total_keypoints_counter
+    print("Zeros percentage : {}%".format(rate * 100))
     if rate > percentage:
         print("The current video is excluded from the dataset\n")
+        excluded_videos.append(video_name)
+        excluded_videos_frames += frame_counter
+
     else:
-        
+
+#---------------------------------------------------------------------------------------------------------------------
+#Sequences reconstruction algorithm
+
         #create a temporary dataframe
         local_dataframe_output = pd.DataFrame()
 
@@ -186,14 +201,21 @@ for i, folder in enumerate(glob.glob("/home/coloranto/Desktop/test/openpose/outp
             
             local_dataframe_output[col] = new_list
             
-
+#---------------------------------------------------------------------------------------------------------------------
         with open('dataset.csv', 'a') as f:
             local_dataframe_output.to_csv(f, header=False, index=False)
         print("The current video has been added to dataset!\n")
     
     dataframe_local = pd.DataFrame()
-    zeros_frames_counter = 0
-    total_frames_counter = 0
+    zeros_keypoints_counter = 0
+    frame_counter = 0
+    total_keypoints_counter = 0
 
+print("Total frames processed: ", global_frame_counter)
+print("Total videos processed: ", global_video_counter)
+print("Total excluded videos: ", len(excluded_videos))
+print("Excluded videos: ", excluded_videos)
+print("Excluded videos frames: ", excluded_videos_frames)
 #close the csv file
 f.close()
+
