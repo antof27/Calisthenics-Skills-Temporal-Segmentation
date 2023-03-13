@@ -15,10 +15,11 @@ data = pd.read_csv('dataset_elaborated.csv')
 X = data.drop(['video_name', 'video_frame', 'skill_id'], axis=1)
 y = data['skill_id']
 
-# Encode the labels
+#encode the labels
 y = le.fit_transform(y)
 
-# Define the GroupShuffleSplit object with the desired parameters
+#print all the unique labels in y
+
 gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
 
 # Split the data into train and test sets, using the 'skill_id' as labels and the 'video_name' as groups
@@ -27,55 +28,54 @@ train_idx, test_idx = next(gss.split(X, y, groups=data['video_name']))
 X_train, y_train = X.iloc[train_idx], y[train_idx]
 X_test, y_test = X.iloc[test_idx], y[test_idx]
 
-X_train_tensor = torch.FloatTensor(X_train.values)
-y_train_tensor = torch.LongTensor(y_train)
-
 # Define the MLP model
 class MLP(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
+    def __init__(self, input_size, hidden_units, num_classes):
         super(MLP, self).__init__()
-        self.hl1 = nn.Linear(input_size, hidden_size)
-        self.relu = nn.ReLU()
-        self.hl2 = nn.Linear(hidden_size, num_classes)
-        self.softmax = nn.Softmax()
+        self.hl1 = nn.Linear(input_size, hidden_units)
+        self.activation = nn.LeakyReLU()
+        self.hl2 = nn.Linear(hidden_units, num_classes)
+        self.output_layer = nn.Softmax()
 
-    def forward(self, x):
-        out = self.hl1(x)
-        out = self.relu(out)
-        out = self.hl2(out)
-        out = self.softmax(out)
-        return out
+    
+    def forward(self,x):
+        hidden_representation = self.hl1(x)
+        hidden_representation = self.activation(hidden_representation)
+        hidden_representation = self.hl2(hidden_representation)
+        scores = self.output_layer(hidden_representation)
+        return scores
+
+
 
 # Set the hyperparameters
-input_size = len(data.columns) - 3 # exclude 'id_video' and 'class' columns
-hidden_size = 128
+input_size = len(data.columns) - 3 # exclude 'id_video', 'frame', 'skill_id'
+hidden_units = 75
 num_classes = len(data['skill_id'].unique())
-lr = 0.01
+lr = 0.001
 n_epochs = 50
-batch_size = 32
+batch_size = 16
 
 # Initialize the model, loss function, and optimizer
-model = MLP(input_size, hidden_size, num_classes)
+model = MLP(input_size, hidden_units, num_classes)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr)
+optimizer = optim.Adam(model.parameters(), lr, weight_decay=0.0001)
 
 
-train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+train_dataset = TensorDataset(torch.FloatTensor(X_train.values), torch.LongTensor(y_train))
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
 # Train the model
 for epoch in range(n_epochs):
     running_loss = 0.0
     for i, (inputs, labels) in enumerate(train_loader):
-        # Convert inputs and labels to PyTorch tensors
+        
         outputs = model(inputs)
         loss = criterion(outputs, labels)
-
-
+        
         # Forward pass
         outputs = model(inputs)
         loss = criterion(outputs, labels)
-
+        
         # Backward and optimize
         optimizer.zero_grad()
         loss.backward()
@@ -106,5 +106,5 @@ with torch.no_grad():
 
 print('Accuracy on test data: %d %%' % (100 * correct / total))
 
-
 torch.save(model.state_dict(), 'model.pth')
+
