@@ -282,6 +282,8 @@ predicted_video.to_csv('predicted_video.csv', index=False)
 
 df = pd.read_csv("predicted_video.csv")
 
+#--------------------- FIRST STEP -----------------------------
+
 modes = []
 modes_2_temp = []
 #set the default size to 3
@@ -315,7 +317,7 @@ while i <= len(df):
 print(modes)
 print(modes_2_temp)
 
-print("Second step : \n")
+#--------------------- SECOND STEP -----------------------------
 
 final_array = []
 print(len(modes))
@@ -348,8 +350,7 @@ for i in range(0, len(modes)):
 print(modes)
 #print(final_array)
 
-
-
+#--------------------- THIRD STEP -----------------------------
 
 output = []
 output_l = []
@@ -384,9 +385,7 @@ total_length = total_frame*(1/24)
 print("total length in seconds: ", total_length)
 
 
-#create a subplot with 2 rows and 2 columns
-
-
+#--------------------- PLOTTING THE PREDICTED -----------------------------
 
 
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
@@ -425,9 +424,6 @@ ax2.plot(x1, y1, color='red')
 ax2.set_title("Predicted - seconds")
 ax2.set_xlabel("Seconds")
 ax2.set_ylabel("Skills")
-
-
-
 
 
 #--------------------- GROUND TRUTH COMPARISON -----------------------------
@@ -486,7 +482,7 @@ for i_skill in range(0, n__skills):
     skills_frames_.append([skill_name_, start_frame_, end_frame_])
 
 
-#in the other frames, out of the interval, the skill is not performed so the skill_name is "none"
+#--------------------- RECONSTRUCT NONE SEQUENCE -----------------------------
 i = 0
 k = len(skills_frames_)
 
@@ -508,14 +504,14 @@ while True:
 
 print("Skills in frames: ", skills_frames_)
 
-#convert the frames in seconds
+#Converting the frames in seconds into a new list
 for i in range(0, len(skills_frames_)):
     skills_seconds_.append([skills_frames_[i][0], (skills_frames_[i][2]-skills_frames_[i][1])/24])
 
 print("Skills in seconds: ", skills_seconds_)
 
 
-
+#--------------------- PLOTTING THE GROUND TRUTH -----------------------------
 
 x2 = []
 y2 = []
@@ -557,5 +553,9 @@ fig.subplots_adjust(top=0.85)
 fig.suptitle("Video segmentation timelines", fontsize=16, fontweight='bold')
 
 plt.show()
+
+#--------------------- CALCULATE THE ACCURACY -----------------------------
+
+
 
 f.close()
