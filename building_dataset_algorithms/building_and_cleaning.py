@@ -5,7 +5,7 @@ import re
 import pandas as pd
 
 
-with open('dataset.csv', 'w') as f:
+with open('dataset_elaborated.csv', 'w') as f:
             writer = csv.writer(f)
             writer.writerow(['NoseX', 'NoseY', 'NoseC',
                                 'LEyeX', 'LEyeY', 'LEyeC',
@@ -54,7 +54,7 @@ excluded_videos = []
 excluded_videos_frames = 0
 
 #reading all the json files
-input_json_folder = "/home/coloranto/Desktop/test/openpose/output/json/*"
+input_json_folder = "/home/coloranto/Documents/tesi/pre-post_processing_algorithms/pre_processing/elaboration_pre_processing_algorithms/json_source/*"
 print("Reading the json files from the folder : ", input_json_folder)
 for i, folder in enumerate(glob.glob(input_json_folder)):
     
@@ -110,10 +110,14 @@ for i, folder in enumerate(glob.glob(input_json_folder)):
             sem = False
             for row in reader: 
                 #print(row)
-
+                
+                #we are considering the _copy of the file 
+                video_name_edit = video_name
+                if video_name_edit.startswith("_"):
+                    video_name_edit = video_name_edit[1:]
 
                 #print("Compare ", video_name, " with ", row[6])
-                if video_name == row[6] and video_frame >= int(row[3]) and video_frame <= int(row[4]):
+                if video_name_edit == row[6] and video_frame >= int(row[3]) and video_frame <= int(row[4]):
                     #print("Sono uguali")
                     keypoints.append(row[5])
                     sem = True
@@ -197,12 +201,24 @@ for i, folder in enumerate(glob.glob(input_json_folder)):
                 new_list.append(0)
                 l1.pop()
 
-
+            
             
             local_dataframe_output[col] = new_list
-            
+        
+        #mirroring the keypoints
+        for index, row in local_dataframe_output.iterrows():
+            mirrored_row = row
+            for i in range(len(row)):
+                if i == 75 or i == 76 or i == 77:
+                    continue
+                if i % 3 == 0:
+                    if row[i] != 0:
+                        mirrored_row[i] = 1 - row[i]
+
+            local_dataframe_output = local_dataframe_output.append(mirrored_row, ignore_index=True)
+
 #---------------------------------------------------------------------------------------------------------------------
-        with open('dataset.csv', 'a') as f:
+        with open('dataset_elaborated.csv', 'a') as f:
             local_dataframe_output.to_csv(f, header=False, index=False)
         print("The current video has been added to dataset!\n")
     
@@ -216,6 +232,5 @@ print("Total videos processed: ", global_video_counter)
 print("Total excluded videos: ", len(excluded_videos))
 print("Excluded videos: ", excluded_videos)
 print("Excluded videos frames: ", excluded_videos_frames)
-#close the csv file
-f.close()
 
+f.close()
