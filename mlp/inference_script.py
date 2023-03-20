@@ -18,10 +18,12 @@ try:
     input_video = sys.argv[1]
 
     video_converted_with_ext = "video_to_inference.mp4"
+
     video_converted = video_converted_with_ext.split('.')[0]
     os.system(f"ffmpeg -i {input_video} -r 24 -vf \"scale=w=960:h=540:force_original_aspect_ratio=decrease,pad=960:540:(ow-iw)/2:(oh-ih)/2\" {video_converted_with_ext}")
 except:
     print("Error in video conversion, check the video format or the video path")
+
 
 #---------------------ELABORATING THE VIDEO WITH OPENPOSE ----------------------------
 
@@ -126,11 +128,12 @@ for file in folder:
     with open(file) as f:
         data = json.load(f)
     
-
+    
     if data["people"] == []:
-        continue
-
-    keypoints = data["people"][0]["pose_keypoints_2d"]
+        keypoints = [0] * 75
+        #continue
+    else:
+        keypoints = data["people"][0]["pose_keypoints_2d"]
     
 
     #extract the frame number from the file name
@@ -152,6 +155,7 @@ for file in folder:
 print("Dataframe created!\n", dataframe_local)
 
 #--------------------- ZERO SEQUENCES RECONSTRUCTION -----------------------------
+
 
 local_dataframe_output = pd.DataFrame()
 
@@ -175,26 +179,28 @@ for col in dataframe_local.columns:
         l1.pop(0)
 
     for i in range(len(l1)):
-
         if l1[i] == 0:
             n_zeros += 1
+            
             if n_zeros == 1:
                 first_number = l1[i-1]
         else:
             if n_zeros == 0:
-                
                 new_list.append(l1[i])
             else:
                 last_number = l1[i]
-                step = (last_number - first_number) / (n_zeros + 1)
-                for j in range(1, n_zeros + 1):
-                    temp_step = round(first_number + j * step, 6)
-                    new_list.append(temp_step)
-                
-                last_number = round(last_number, 6)
-                new_list.append(last_number)
+                range_ = last_number - first_number 
+                if n_zeros < 0:
+                    step = (last_number - first_number) / (n_zeros + 1)
+                    for j in range(1, n_zeros + 1):
+                        new_list.append(first_number + j * step)
+                    new_list.append(last_number)
+                else:
+                    for j in range(1, n_zeros + 1):
+                        new_list.append(0)
+                    new_list.append(last_number)
+                    
                 n_zeros = 0
-
     # manage the zeros sequences at the ending of the list
     while len(l1) > 0 and l1[-1] == 0:
         new_list.append(0)
@@ -202,14 +208,15 @@ for col in dataframe_local.columns:
 
 
     local_dataframe_output[col] = new_list
-    
+
+
 with open('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv', 'a') as f:
     local_dataframe_output.to_csv(f, header=False, index=False)
 
 
 #--------------------- MLP INFERENCE -----------------------------
 input_size = 75
-hidden_units = 512
+hidden_units = 1024
 num_classes = 9
 
 le = LabelEncoder()
@@ -287,7 +294,7 @@ df = pd.read_csv("predicted_video.csv")
 modes = []
 modes_2_temp = []
 #set the default size to 3
-window_size = 3
+window_size = 10
 temp_mode = []
 i = window_size
 while i <= len(df):
@@ -310,8 +317,8 @@ while i <= len(df):
 
         arr = values.values
         max_mode_index = np.where(arr == current_mode)[0][-1]
-        window_size = 3
-        i += window_size-1 
+        window_size = 10
+        i += window_size-2
         
     
 print(modes)
