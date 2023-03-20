@@ -5,7 +5,7 @@ import re
 import pandas as pd
 
 
-with open('dataset_elaborated.csv', 'w') as f:
+with open('dataset_elaboratedv4KF.csv', 'w') as f:
             writer = csv.writer(f)
             writer.writerow(['NoseX', 'NoseY', 'NoseC',
                                 'LEyeX', 'LEyeY', 'LEyeC',
@@ -183,17 +183,21 @@ for i, folder in enumerate(glob.glob(input_json_folder)):
                         first_number = l1[i-1]
                 else:
                     if n_zeros == 0:
-                        
                         new_list.append(l1[i])
+
                     else:
                         last_number = l1[i]
-                        step = (last_number - first_number) / (n_zeros + 1)
-                        for j in range(1, n_zeros + 1):
-                            temp_step = round(first_number + j * step, 6)
-                            new_list.append(temp_step)
-                        
-                        last_number = round(last_number, 6)
-                        new_list.append(last_number)
+                        range_ = last_number - first_number
+                        if n_zeros <= 5 and range_ < 0.10:
+                            step = (last_number - first_number) / (n_zeros + 1)
+                            for j in range(1, n_zeros + 1):
+                                new_list.append(first_number + j * step)
+                            new_list.append(last_number)
+                        else:
+                            for j in range(1, n_zeros + 1):
+                                new_list.append(0)
+                            new_list.append(last_number)
+                            
                         n_zeros = 0
 
             # manage the zeros sequences at the ending of the list
@@ -218,7 +222,7 @@ for i, folder in enumerate(glob.glob(input_json_folder)):
             local_dataframe_output = local_dataframe_output.append(mirrored_row, ignore_index=True)
 
 #---------------------------------------------------------------------------------------------------------------------
-        with open('dataset_elaborated.csv', 'a') as f:
+        with open('dataset_elaboratedv4KF.csv', 'a') as f:
             local_dataframe_output.to_csv(f, header=False, index=False)
         print("The current video has been added to dataset!\n")
     
