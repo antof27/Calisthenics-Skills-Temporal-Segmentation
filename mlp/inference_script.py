@@ -11,6 +11,7 @@ import glob
 import re
 from scipy.stats import mode
 from matplotlib import pyplot as plt
+from mlp import MLP
 
 
 #--------------------- INPUT VIDEO FROM TERMINAL, CONVERT TO 960X540 AT 24 FPS -----------------------------
@@ -122,9 +123,10 @@ folder = glob.glob(folder + "*.json")
 folder = natural_sort(folder)
 dataframe_local = pd.DataFrame()
 
-
+total_frames = 0
 
 for file in folder:
+    total_frames += 1
     with open(file) as f:
         data = json.load(f)
     
@@ -190,7 +192,7 @@ for col in dataframe_local.columns:
             else:
                 last_number = l1[i]
                 range_ = last_number - first_number 
-                if n_zeros < 0:
+                if range_ < 1000:
                     step = (last_number - first_number) / (n_zeros + 1)
                     for j in range(1, n_zeros + 1):
                         new_list.append(first_number + j * step)
@@ -215,73 +217,41 @@ with open('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv', 'a') as f:
 
 
 #--------------------- MLP INFERENCE -----------------------------
-input_size = 75
-hidden_units = 1024
-num_classes = 9
+
+#encode the labels to number  
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 le = LabelEncoder()
 le.classes_ = np.load('classes.npy', allow_pickle=True)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-class MLP(nn.Module):
-    def __init__(self, input_size, hidden_units, num_classes):
-        super(MLP, self).__init__()
-        self.hl1 = nn.Linear(input_size, hidden_units)
-        self.activation = nn.ReLU()
-        
-        self.hl2 = nn.Linear(hidden_units, hidden_units)
-        self.activation2 = nn.ReLU()
-        
-        self.hl3 = nn.Linear(hidden_units, hidden_units)
-        self.activation3 = nn.ReLU()
-        
-        self.hl4 = nn.Linear(hidden_units, num_classes)
-        self.output_layer = nn.LogSoftmax(dim=1)
-
-    
-    def forward(self,x):
-        hidden_representation = self.hl1(x)
-        hidden_representation = self.activation(hidden_representation)
-        
-        hidden_representation = self.hl2(hidden_representation)
-        hidden_representation = self.activation2(hidden_representation)
-
-        hidden_representation = self.hl3(hidden_representation)
-        hidden_representation = self.activation3(hidden_representation)
-
-        hidden_representation = self.hl4(hidden_representation)
-        scores = self.output_layer(hidden_representation)
-        return scores
 
 
-# Load the model
-model = MLP(input_size, hidden_units, num_classes)
+
+# load the model
+model = MLP()
 model.to(device)
 model.load_state_dict(torch.load('model.pth'))
 model.eval()
-
-# Load the label encoder
-
-
-# Load the data to predict
 data_to_predict = pd.read_csv('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv')
 
-# Preprocess the data
 X_pred = data_to_predict.drop(['video_name', 'video_frame', 'skill_id'], axis=1)
 X_pred = torch.FloatTensor(X_pred.values).to(device)
 
-# Make predictions
+#make predictions, saving the index to predicted and without saving the gradient operations
 with torch.no_grad():
     outputs = model(X_pred)
+    probabilities = torch.softmax(outputs, dim=1)
     _, predicted = torch.max(outputs.data, 1)
 
-# Decode the predicted labels
+# decode the predicted labels from numbers to strings 
 predicted_labels = le.inverse_transform(predicted.tolist())
 
 # put the predicted labels in a csv file    
 predicted_video = pd.DataFrame()
 predicted_video['video_name'] = "video_name"
 predicted_video['video_name'] = predicted_labels
+predicted_video['probabilities'] = probabilities.tolist()
+
+print("probabilities", probabilities.tolist())
 
 predicted_video.to_csv('predicted_video.csv', index=False)
 
@@ -293,8 +263,8 @@ df = pd.read_csv("predicted_video.csv")
 
 modes = []
 modes_2_temp = []
-#set the default size to 3
-window_size = 10
+#set the default size to 15
+window_size = 15
 temp_mode = []
 i = window_size
 while i <= len(df):
@@ -317,45 +287,46 @@ while i <= len(df):
 
         arr = values.values
         max_mode_index = np.where(arr == current_mode)[0][-1]
-        window_size = 10
+        window_size = 15
         i += window_size-2
         
-    
-print(modes)
-print(modes_2_temp)
 
 #--------------------- SECOND STEP -----------------------------
+
+def filtering(patch_mode, modes, index1, index2, index3, index4, index5=None):
+    patch_mode.append(modes[index1][0])
+    patch_mode.append(modes[index2][0])
+    patch_mode.append(modes[index3][0])
+    
+    #if all the values have the same occurences
+    if len(set(patch_mode)) == len(patch_mode):
+        patch_mode.append(modes[index4][0])
+        if(index5 != None):
+            patch_mode.append(modes[index5][0])
+
+    moda_ = mode(patch_mode)[0][0]
+    modes[i][0] = moda_
+    return modes
+
+print(modes)
+print(modes_2_temp)
 
 final_array = []
 print(len(modes))
 for i in range(0, len(modes)):
     patch_mode = []
-    if i != 0 and i != len(modes)-1:
-        patch_mode.append(modes[i-1][0])
-        patch_mode.append(modes[i][0])
-        patch_mode.append(modes[i+1][0])
-        moda_ = mode(patch_mode)[0][0]
-        modes[i][0] = moda_
-        #final_array.append([mode(patch_mode)[0][0], modes[i][1], modes[i][2]])
-    elif i == 0:
-        patch_mode.append(modes[i][0])
-        patch_mode.append(modes[i+1][0])
-        patch_mode.append(modes[i+2][0])
-        moda_ = mode(patch_mode)[0][0]
-        modes[i][0] = moda_
-
-        #final_array.append([mode(patch_mode)[0][0], modes[i][1], modes[i][2]])
+    if i == 0:
+        filtering(patch_mode, modes, i, i+1, i+2, i+3)
+    elif i == 1:
+        filtering(patch_mode, modes, i-1, i, i+1, i+2)
+    elif i == len(modes)-2:
+        filtering(patch_mode, modes, i-1, i, i+1, i-2)
+    elif i == len(modes)-1:
+        filtering(patch_mode, modes, i-2, i-1, i, i-3)
     else:
-        patch_mode.append(modes[i-2][0])
-        patch_mode.append(modes[i-1][0])
-        patch_mode.append(modes[i][0])
-        moda_ = mode(patch_mode)[0][0]
-        modes[i][0] = moda_
-        
-        #final_array.append([mode(patch_mode)[0][0], modes[i][1], modes[i][2]])
+        filtering(patch_mode, modes, i-1, i, i+1, i-2, i+2)
     
 print(modes)
-#print(final_array)
 
 #--------------------- THIRD STEP -----------------------------
 
@@ -387,8 +358,7 @@ print(output)
 print("\nLista finale in millisecondi: \n")
 print(output_l)
 
-total_frame = (output[-1][2])+1
-total_length = total_frame*(1/24)
+total_length = total_frames*(1/24)
 print("total length in seconds: ", total_length)
 
 
@@ -448,7 +418,7 @@ skills_frames_ = []
 skills_seconds_ = []
 
 def name_corrector(name):
-    print("Name inserted: ", name)
+    #print("Name inserted: ", name)
     if name.startswith(" "):
         name = name[1:]
     if name.endswith(" "):
@@ -474,7 +444,7 @@ def name_corrector(name):
         print("The name you inserted is not correct, please insert the correct name")
         name = input()
         name = name_corrector(name)
-    print("Name corrected: ", name, "")        
+    #print("Name corrected: ", name, "")        
     return name
 
 
@@ -484,14 +454,22 @@ for i_skill in range(0, n__skills):
     skill_name_ = name_corrector(skill_name_)
     print("Insert the start frame of the #", i_skill+1,"skill in the video")
     start_frame_ = int(input())
+    if start_frame_ < 0:
+        start_frame_ = 0
     print("Insert the end frame of the #", i_skill+1,"skill in the video")
     end_frame_ = int(input())
+    if end_frame_ > total_frames:
+        end_frame_ = total_frames
     skills_frames_.append([skill_name_, start_frame_, end_frame_])
+    
+    
 
 
 #--------------------- RECONSTRUCT NONE SEQUENCE -----------------------------
 i = 0
 k = len(skills_frames_)
+print("k: ", k)
+print("total frame: ", total_frames)
 
 while True:
     if i == 0 and skills_frames_[i][1] != 0:
@@ -502,11 +480,11 @@ while True:
         if skills_frames_[i][2]+1 != skills_frames_[i+1][1]:
             skills_frames_.insert(i+1, ["none", skills_frames_[i][2]+1, skills_frames_[i+1][1]-1])
             k = k+1
-
+    
     else:
-        skills_frames_.append(["none", skills_frames_[i][2]+1, total_frame-1]) 
+        skills_frames_.append(["none", skills_frames_[i][2]+1, total_frames-1]) 
         break
-
+        
     i = i+1
 
 print("Skills in frames: ", skills_frames_)
