@@ -10,8 +10,16 @@ import random as rd
 import torch.optim as optim
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.tensorboard import SummaryWriter
+from vsr import vsr_algorithm
+from paper_code import viterbi, SF1
+import sys
 
 writer = SummaryWriter('runs/MLP')
+
+#set a seed for reproducibility
+torch.manual_seed(42)
+np.random.seed(42)
+
 
 
 def hidden_blocks(input_size, output_size, activation_function):
@@ -40,7 +48,6 @@ def main():
 
     print("Current device:", device)
 
-
     le = LabelEncoder()
     data = pd.read_csv('dataset_elaboratedv5SI.csv')
 
@@ -51,7 +58,9 @@ def main():
     y = le.fit_transform(y)
 
     print(le.classes_)
-    #print all the unique labels in y
+    for i in range(len(le.classes_)):
+        print(le.classes_[i], i)
+
     
     gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
 
@@ -61,6 +70,8 @@ def main():
     X_train, y_train = X.iloc[train_idx], y[train_idx]
     X_test, y_test = X.iloc[test_idx], y[test_idx]
 
+
+ 
     def augmented(X_train, y_train):
         X_train_augmented = X_train.copy()
         y_train_augmented = y_train.copy()
@@ -84,18 +95,24 @@ def main():
         
         return X_train_augmented, y_train_augmented
 
-
+    '''
     X_train, y_train = augmented(X_train, y_train)
-    
-    X_train.to_csv('Augmented_dataset.csv', index=False)
 
+    X_train.to_csv('Xtrain_output.csv', index=False)
+    y_train_df = pd.DataFrame(y_train, columns=['skill_id'])
+    y_train_df.to_csv('Ytrain_output.csv', index=False)
+
+    X_test.to_csv('Xtest_output.csv', index=False)
+    y_test_df = pd.DataFrame(y_test, columns=['skill_id'])
+    y_test_df.to_csv('Ytest_output.csv', index=False)
+    '''
 
     # Set the hyperparameters
     input_size = len(data.columns) - 3 # exclude 'id_video', 'frame', 'skill_id'
     hidden_units = 512
     num_classes = len(data['skill_id'].unique())
     lr = 0.001
-    n_epochs = 50
+    n_epochs = 10
     batch_size = 128
 
 
@@ -104,15 +121,35 @@ def main():
 
     #criterion = nn.NLLLoss()
     optimizer = optim.Adam(model.parameters(), lr, weight_decay=1e-4)
+    #optimizer = optim.RMSprop(model.parameters(), lr, weight_decay=1e-4)
+    #optimizer = optim.Adagrad(model.parameters(), lr, weight_decay=1e-4)
     #optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4, nesterov=True)
 
+    '''
     train_dataset = TensorDataset(torch.FloatTensor(X_train.values).to(device), torch.LongTensor(y_train).to(device))
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    
+    '''
+     # Load the training data
+    X_train = pd.read_csv('Xtrain_output.csv')
+    y_train = pd.read_csv('Ytrain_output.csv')
+    train_dataset = TensorDataset(torch.FloatTensor(X_train.values).to(device), 
+                                  torch.LongTensor(y_train['skill_id'].values).to(device))
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+ 
 
 
+
+
+
+
+    raw_pred_test = []
+    vsr_pred_test = []
+    viterbi_pred_test = []
+    gt_test = []
 
     model.to(device)
+    
     for epoch in range(n_epochs):
         running_loss = 0.0
         correct = 0
@@ -150,10 +187,23 @@ def main():
     correct = 0
     total = 0
 
-    test_dataset = TensorDataset(torch.FloatTensor(X_test.values).to(device), torch.LongTensor(y_test).to(device))
+
+    # Load the test data
+    X_test = pd.read_csv('Xtest_output.csv')
+    y_test = pd.read_csv('Ytest_output.csv')
+    test_dataset = TensorDataset(torch.FloatTensor(X_test.values).to(device), 
+                                 torch.LongTensor(y_test['skill_id'].values).to(device))
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
+    '''
+    test_dataset = TensorDataset(torch.FloatTensor(X_test.values).to(device), torch.LongTensor(y_test).to(device))
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    '''
+    y_pred = []
+    y_true = []
+
     with torch.no_grad():
+
         for inputs, labels in test_loader:
             
             #if the input row has a lot of zeros, it is not considered
@@ -164,8 +214,33 @@ def main():
 
             outputs = model(inputs)
             _, predicted = torch.max(outputs.data, 1)
+
+            probabilities = torch.softmax(outputs, dim=1)
+            probabilities = probabilities.cpu().numpy()
+
+            
+            gt_labels = labels.tolist()
+            raw_predicted = predicted.tolist()
+            vsr_predicted = vsr_algorithm(raw_predicted)            
+            viterbi_predicted = viterbi(probabilities, 0.1)
+
+            gt_test.extend(gt_labels)
+            raw_pred_test.extend(raw_predicted)
+            vsr_pred_test.extend(vsr_predicted)
+            viterbi_pred_test.extend(viterbi_predicted)
+            
+            
+            #put them into a csv
+            temp = pd.DataFrame({'gt_labels': gt_labels, 'raw_predicted': raw_predicted})
+
+            temp.to_csv('temp_seeing.csv', mode='a', header=False, index=False)
+
+
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            writer.add_scalar('Test Accuracy', 100 * correct / total, global_step=0)
+
+            
 
     print('Accuracy on test data: %d %%' % (100 * correct / total))
 
@@ -178,12 +253,38 @@ def main():
             _, predicted = torch.max(outputs.data, 1)
             y_pred.extend(predicted.tolist())
             y_true.extend(labels.tolist())
-    #print confusion matrix with index as labels
-    print(confusion_matrix(y_true, y_pred, labels=list(range(len(le.classes_)))))
+
+    print(confusion_matrix(y_true, y_pred))
+
+    labels = list(le.classes_)
+
+    # METRIC CALCULATION
+    raw_results, raw_value = SF1(gt_test, raw_pred_test)
+    print("raw_results: ", raw_results)
+    print("raw_value: ", raw_value)
+    average_raw_value = np.mean(raw_value)
+    print("raw_value_mean: ", average_raw_value)
+
+
+    vsr_results, vsr_value = SF1(gt_test, vsr_pred_test)
+    print("vsr_results: ", vsr_results)
+    print("vsr_value: ", vsr_value)
+    average_vsr_value = np.mean(vsr_value)
+    print("vsr_value_mean: ", average_vsr_value)
+
+    paper_results, paper_value = SF1(gt_test, viterbi_pred_test)
+    print("paper_results: ", paper_results)
+    print("paper_value: ", paper_value)
+    average_paper_value = np.mean(paper_value)
+    print("paper_value_mean: ", average_paper_value)
+
+
+    
+
 
     np.save('classes.npy', le.classes_)
 
     torch.save(model.state_dict(), 'model.pth')
-
+    
 if __name__ == '__main__':
     main()
