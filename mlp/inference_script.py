@@ -12,6 +12,31 @@ import re
 from scipy.stats import mode
 from matplotlib import pyplot as plt
 from mlp import MLP
+from paper_code import viterbi, lab2seg, jaccardIndex, SF1
+
+#i want to create an enum that contain the corrispondence between coded labels and decoded labels
+#i want 
+def encoding(list):
+    for i in range (len(list)):
+        if list[i] == "bl":
+            list[i] = 0
+        elif list[i] == "fl":
+            list[i] = 1
+        elif list[i] == "flag":
+            list[i] = 2
+        elif list[i] == "ic":
+            list[i] = 3
+        elif list[i] == "mal":
+            list[i] = 4
+        elif list[i] == "none":
+            list[i] = 5
+        elif list[i] == "oafl":
+            list[i] = 6
+        elif list[i] == "oahs":
+            list[i] = 7
+        elif list[i] == "pl":
+            list[i] = 8
+    return list
 
 
 #--------------------- INPUT VIDEO FROM TERMINAL, CONVERT TO 960X540 AT 24 FPS -----------------------------
@@ -192,7 +217,7 @@ for col in dataframe_local.columns:
             else:
                 last_number = l1[i]
                 range_ = last_number - first_number 
-                if range_ < 1000:
+                if range_ < 0:
                     step = (last_number - first_number) / (n_zeros + 1)
                     for j in range(1, n_zeros + 1):
                         new_list.append(first_number + j * step)
@@ -213,7 +238,7 @@ for col in dataframe_local.columns:
 
 
 with open('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv', 'a') as f:
-    local_dataframe_output.to_csv(f, header=False, index=False)
+    dataframe_local.to_csv(f, header=False, index=False)
 
 
 #--------------------- MLP INFERENCE -----------------------------
@@ -242,20 +267,37 @@ with torch.no_grad():
     probabilities = torch.softmax(outputs, dim=1)
     _, predicted = torch.max(outputs.data, 1)
 
-# decode the predicted labels from numbers to strings 
-predicted_labels = le.inverse_transform(predicted.tolist())
+
 
 # put the predicted labels in a csv file    
 predicted_video = pd.DataFrame()
+predicted_numerical = pd.DataFrame()
+
 predicted_video['video_name'] = "video_name"
+predicted_numerical['video_name'] = "video_name"
+predicted_numerical["video_name"] = predicted.tolist()
+
+raw_predicted = predicted.tolist()
+print("len raw_predicted: ", len(raw_predicted))
+
+predicted_labels = le.inverse_transform(predicted.tolist())
 predicted_video['video_name'] = predicted_labels
+
 predicted_video['probabilities'] = probabilities.tolist()
 
-print("probabilities", probabilities.tolist())
+probabilities_matrix = np.zeros((total_frames, 9))
+for i in range(len(predicted_video)):
+    probabilities_matrix[i] = predicted_video.iloc[i, 1]
+
+print(probabilities_matrix)
+
+
+predicted_numerical.to_csv('predicted_numerical.csv', index=False)
 
 predicted_video.to_csv('predicted_video.csv', index=False)
 
-#--------------------- VIDEO SEGMENTATION -----------------------------
+
+#--------------------- VIDEO SEGMENT RECONSTRUCTION -----------------------------
 
 df = pd.read_csv("predicted_video.csv")
 
@@ -266,34 +308,39 @@ modes_2_temp = []
 #set the default size to 15
 window_size = 15
 temp_mode = []
+
 i = window_size
 while i <= len(df):
     values = df[i-window_size:i].iloc[:, 0]
     current_mode = values.mode()[0]
-
+    print("Values: ", values)
     if len(set(values)) == window_size:
         window_size += 1
         i+=1
        
     else:
-        mode_value = mode(values)[0][0]
+        #mode_value = mode(values)[0][0]
 
-        min_index = values[values==mode_value].index.min()
-        max_index = values[values==mode_value].index.max()
+        min_index = values[values==current_mode].index.min()
 
+        #arr = values.values
+        #max_mode_index = np.where(arr == current_mode)[0][-1]
+        window_size = 15
+        i += window_size-2
+        max_index = values[values==current_mode].index.max()
+        if i >= len(df):
+            max_index = len(df)-1
+        
         temp_mode = [current_mode, min_index, max_index] 
         modes.append(temp_mode)
         modes_2_temp.append(current_mode)
 
-        arr = values.values
-        max_mode_index = np.where(arr == current_mode)[0][-1]
-        window_size = 15
-        i += window_size-2
+
         
 
 #--------------------- SECOND STEP -----------------------------
 
-def filtering(patch_mode, modes, index1, index2, index3, index4, index5=None):
+def filtering(pointer, patch_mode, modes, index1, index2, index3, index4, index5=None):
     patch_mode.append(modes[index1][0])
     patch_mode.append(modes[index2][0])
     patch_mode.append(modes[index3][0])
@@ -305,7 +352,8 @@ def filtering(patch_mode, modes, index1, index2, index3, index4, index5=None):
             patch_mode.append(modes[index5][0])
 
     moda_ = mode(patch_mode)[0][0]
-    modes[i][0] = moda_
+    modes[pointer][0] = moda_
+    
     return modes
 
 print(modes)
@@ -313,18 +361,19 @@ print(modes_2_temp)
 
 final_array = []
 print(len(modes))
-for i in range(0, len(modes)):
+for p in range(0, len(modes)):
     patch_mode = []
-    if i == 0:
-        filtering(patch_mode, modes, i, i+1, i+2, i+3)
-    elif i == 1:
-        filtering(patch_mode, modes, i-1, i, i+1, i+2)
-    elif i == len(modes)-2:
-        filtering(patch_mode, modes, i-1, i, i+1, i-2)
-    elif i == len(modes)-1:
-        filtering(patch_mode, modes, i-2, i-1, i, i-3)
+    
+    if p == 0:
+        filtering(p, patch_mode, modes, p, p+1, p+2, p+3)
+    elif p == 1:
+        filtering(p, patch_mode, modes, p-1, p, p+1, p+2)
+    elif p == len(modes)-2:
+        filtering(p, patch_mode, modes, p-1, p, p+1, p-2)
+    elif p == len(modes)-1:
+        filtering(p, patch_mode, modes, p-2, p-1, p, p-3)
     else:
-        filtering(patch_mode, modes, i-1, i, i+1, i-2, i+2)
+        filtering(p, patch_mode, modes, p-1, p, p+1, p-2, p+2)
     
 print(modes)
 
@@ -336,7 +385,10 @@ i = 0
 breakp = False
 while i < len(modes)-1:
     skill = modes[i][0]
-    start = modes[i][1]
+    if i == 0:
+        start = 0
+    else:
+        start = modes[i][1]
     while i < len(modes)-1 and modes[i][0] == skill:
         i += 1
 
@@ -360,6 +412,17 @@ print(output_l)
 
 total_length = total_frames*(1/24)
 print("total length in seconds: ", total_length)
+
+vsr_predicted = []
+for i in range(0, len(output)):
+    for j in range(output[i][1], output[i][2]+1):
+        vsr_predicted.append(output[i][0])
+
+print("vsr_predicted", vsr_predicted)
+
+vsr_predicted = encoding(vsr_predicted)
+
+print("vsr_predicted", vsr_predicted)
 
 
 #--------------------- PLOTTING THE PREDICTED -----------------------------
@@ -459,15 +522,13 @@ for i_skill in range(0, n__skills):
     print("Insert the end frame of the #", i_skill+1,"skill in the video")
     end_frame_ = int(input())
     if end_frame_ > total_frames:
-        end_frame_ = total_frames
+        end_frame_ = total_frames-1
     skills_frames_.append([skill_name_, start_frame_, end_frame_])
-    
-    
+
 
 
 #--------------------- RECONSTRUCT NONE SEQUENCE -----------------------------
 i = 0
-k = len(skills_frames_)
 print("k: ", k)
 print("total frame: ", total_frames)
 
@@ -476,15 +537,17 @@ while True:
         skills_frames_.insert(0, ["none", 0, skills_frames_[i][1]-1])
         k = k+1
         
-    if i != k-1:
+    if i != len(skills_frames_)-1:
         if skills_frames_[i][2]+1 != skills_frames_[i+1][1]:
             skills_frames_.insert(i+1, ["none", skills_frames_[i][2]+1, skills_frames_[i+1][1]-1])
             k = k+1
-    
-    else:
-        skills_frames_.append(["none", skills_frames_[i][2]+1, total_frames-1]) 
-        break
         
+    
+    if i == len(skills_frames_)-1:
+        if skills_frames_[i][2]+1 < total_frames-1:
+            skills_frames_.append(["none", skills_frames_[i][2]+1, total_frames-1]) 
+        break
+
     i = i+1
 
 print("Skills in frames: ", skills_frames_)
@@ -495,6 +558,16 @@ for i in range(0, len(skills_frames_)):
 
 print("Skills in seconds: ", skills_seconds_)
 
+gt_predicted = []
+for i in range(0, len(skills_frames_)):
+    for j in range(skills_frames_[i][1], skills_frames_[i][2]+1):
+        gt_predicted.append(skills_frames_[i][0])
+
+print("gt_predicted", gt_predicted)
+
+gt_predicted = encoding(gt_predicted)
+
+print("gt_predicted", gt_predicted)
 
 #--------------------- PLOTTING THE GROUND TRUTH -----------------------------
 
@@ -539,7 +612,19 @@ fig.suptitle("Video segmentation timelines", fontsize=16, fontweight='bold')
 
 plt.show()
 
-#--------------------- CALCULATE THE ACCURACY -----------------------------
+# METRIC CALCULATION
+raw_results, raw_value = SF1(gt_predicted, raw_predicted)
+print("raw_results: ", raw_results)
+print("raw_value: ", raw_value)
+
+vsr_results, vsr_value = SF1(gt_predicted, vsr_predicted)
+print("vsr_results: ", vsr_results)
+print("vsr_value: ", vsr_value)
+
+viterbi_output = viterbi(probabilities_matrix)
+paper_results, paper_value = SF1(gt_predicted, viterbi_output)
+print("paper_results: ", paper_results)
+print("paper_value: ", paper_value)
 
 
 
