@@ -242,4 +242,3 @@ print("Excluded videos: ", excluded_videos)
 print("Excluded videos frames: ", excluded_videos_frames)
 
 f.close()
-
