@@ -1,6 +1,5 @@
 import pandas as pd
 import torch
-import torch.nn as nn
 import numpy as np
 import os
 import sys
@@ -9,17 +8,14 @@ import json
 import csv
 import glob
 import re
-from scipy.stats import mode
 from matplotlib import pyplot as plt
 from mlp_post_edit import MLP
 from paper_code import viterbi, SF1
 from vsr import vsr_algorithm
-from name_corrector import name_corrector
-from encoding import encoding
 from openpose_script import openpose_script
-#i want to create an enum that contain the corrispondence between coded labels and decoded labels
-#i want 
-
+from zsr import zsr_algorithm
+from gtc import gtc_algorithm
+from plot import predicted_plotting, gt_plotting
 
 
 #--------------------- INPUT VIDEO FROM TERMINAL, CONVERT TO 960X540 AT 24 FPS -----------------------------
@@ -37,14 +33,13 @@ try:
 except:
     print("Error in video conversion, check the video format or the video path")
 
-
 #---------------------ELABORATING THE VIDEO WITH OPENPOSE ----------------------------
 
-#call the function that elaborates the video with openpose
 json_output_path = openpose_script(video_converted_with_ext, video_converted)
 
 #--------------------- EXTRACTING THE FEATURES FROM THE JSON FILES AND BUILDING THE DATASET -----------------------------
-print("Provo a crearlo")
+
+print("Creating the labels file...")
 
 with open('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv', 'w') as f:
         writer = csv.writer(f)
@@ -75,11 +70,6 @@ with open('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv', 'w') as f:
                             'RHeelX', 'RHeelY', 'RHeelC',
                             'video_name', 'video_frame', 'skill_id'])
 
-
-print("Creato!")
-
-
-
 #order alfabetically the folder
 def natural_sort(l):
     convert = lambda text: int(text) if text.isdigit() else text.lower()
@@ -90,7 +80,6 @@ def natural_sort(l):
 print("Starting the script...")
 folder = json_output_path
 print("Reading json files from: ", folder)
-
 
 #i should open all the json files in the folder
 folder = glob.glob(folder + "*.json")
@@ -104,10 +93,9 @@ for file in folder:
     with open(file) as f:
         data = json.load(f)
     
-    
     if data["people"] == []:
         keypoints = [0] * 75
-        #continue
+
     else:
         keypoints = data["people"][0]["pose_keypoints_2d"]
     
@@ -122,7 +110,6 @@ for file in folder:
 
     frame_num = int(frame_num)
 
-
     keypoints.append(video_converted)
     keypoints.append(frame_num)
         
@@ -132,63 +119,10 @@ print("Dataframe created!\n", dataframe_local)
 
 #--------------------- ZERO SEQUENCES RECONSTRUCTION -----------------------------
 
-
-local_dataframe_output = pd.DataFrame()
-
-for col in dataframe_local.columns:
-    #trasform the column into a list
-    l1 = dataframe_local[col].tolist()
-    
-    if col == 75 or col == 76 or col == 77:
-
-        local_dataframe_output[col] = l1
-        continue
-                
-    n_zeros = 0
-    first_number = None
-    last_number = None
-    new_list = []
-
-    # manage the zeros sequences at the beginning of the list
-    while len(l1) > 0 and l1[0] == 0:
-        new_list.append(0)
-        l1.pop(0)
-
-    for i in range(len(l1)):
-        if l1[i] == 0:
-            n_zeros += 1
-            
-            if n_zeros == 1:
-                first_number = l1[i-1]
-        else:
-            if n_zeros == 0:
-                new_list.append(l1[i])
-            else:
-                last_number = l1[i]
-                range_ = last_number - first_number 
-                if range_ < 0:
-                    step = (last_number - first_number) / (n_zeros + 1)
-                    for j in range(1, n_zeros + 1):
-                        new_list.append(first_number + j * step)
-                    new_list.append(last_number)
-                else:
-                    for j in range(1, n_zeros + 1):
-                        new_list.append(0)
-                    new_list.append(last_number)
-                    
-                n_zeros = 0
-    # manage the zeros sequences at the ending of the list
-    while len(l1) > 0 and l1[-1] == 0:
-        new_list.append(0)
-        l1.pop()
-
-
-    local_dataframe_output[col] = new_list
-
+zsr_dataframe = zsr_algorithm(dataframe_local)
 
 with open('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv', 'a') as f:
     dataframe_local.to_csv(f, header=False, index=False)
-
 
 #--------------------- MLP INFERENCE -----------------------------
 
@@ -197,8 +131,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 le = LabelEncoder()
 le.classes_ = np.load('classes.npy', allow_pickle=True)
-
-
 
 # load the model
 model = MLP()
@@ -215,7 +147,6 @@ with torch.no_grad():
     outputs = model(X_pred)
     probabilities = torch.softmax(outputs, dim=1)
     _, predicted = torch.max(outputs.data, 1)
-
 
 
 # put the predicted labels in a csv file    
@@ -240,176 +171,27 @@ for i in range(len(predicted_video)):
 
 print(probabilities_matrix)
 
-
 predicted_numerical.to_csv('predicted_numerical.csv', index=False)
-
 predicted_video.to_csv('predicted_video.csv', index=False)
 
 
 #--------------------- VIDEO SEGMENT RECONSTRUCTION -----------------------------
 
 df = pd.read_csv("predicted_video.csv")
-
 vsr_predicted, output, output_l = vsr_algorithm(df)
-
 
 #--------------------- PLOTTING THE PREDICTED -----------------------------
 
-
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-
-
-x = []
-y = []
-for i in range(0, len(output)):
-    x.append(output[i][1])
-    x.append(output[i][2])
-    y.append(output[i][0])
-    y.append(output[i][0])
-
-
-ax1.plot(x, y)
-ax1.set_title("Predicted - frames")
-ax1.set_xlabel("Frames")
-ax1.set_ylabel("Skills")
-
-x1 = []
-y1= []
-k = 0
-for i in range(0, len(output_l)):
-    x1.append(k)
-    x1.append(k+output_l[i][1])
-    y1.append(output_l[i][0])
-    y1.append(output_l[i][0])
-    k+=output_l[i][1]
-
-print("x1", x1)
-print("y1", y1)
-
-
-
-ax2.plot(x1, y1, color='red')
-ax2.set_title("Predicted - seconds")
-ax2.set_xlabel("Seconds")
-ax2.set_ylabel("Skills")
-
+seconds_length = predicted_plotting(output, output_l, ax1, ax2)
 
 #--------------------- GROUND TRUTH COMPARISON -----------------------------
 
-print("How many skills are there in the video?")
-try: 
-    n__skills = int(input())
-except ValueError:
-    print("Please insert a number")
-    n__skills = int(input())
-
-print("So.. there are", n__skills, "skills in the video")
-
-skills_frames_ = []
-skills_seconds_ = []
-
-
-for i_skill in range(0, n__skills):
-    print("Insert the name of the #", i_skill+1,"skill in the video")
-    skill_name_ = input()
-    skill_name_ = name_corrector(skill_name_)
-    print("Insert the start frame of the #", i_skill+1,"skill in the video")
-    #if it's not a number, ask again
-    try:
-        start_frame_ = int(input())
-    except ValueError:
-        print("Please insert a number")
-        start_frame_ = int(input())
-    if start_frame_ < 0:
-        start_frame_ = 0
-    print("Insert the end frame of the #", i_skill+1,"skill in the video")
-    try:
-        start_frame_ = int(input())
-    except ValueError:
-        print("Please insert a number")
-        start_frame_ = int(input())
-
-    if end_frame_ > total_frames:
-        end_frame_ = total_frames-1
-    skills_frames_.append([skill_name_, start_frame_, end_frame_])
-
-
-
-#--------------------- RECONSTRUCT NONE SEQUENCE -----------------------------
-i = 0
-print("k: ", k)
-print("total frame: ", total_frames)
-
-while True:
-    if i == 0 and skills_frames_[i][1] != 0:
-        skills_frames_.insert(0, ["none", 0, skills_frames_[i][1]-1])
-        k = k+1
-        
-    if i != len(skills_frames_)-1:
-        if skills_frames_[i][2]+1 != skills_frames_[i+1][1]:
-            skills_frames_.insert(i+1, ["none", skills_frames_[i][2]+1, skills_frames_[i+1][1]-1])
-            k = k+1
-        
-    
-    if i == len(skills_frames_)-1:
-        if skills_frames_[i][2]+1 < total_frames-1:
-            skills_frames_.append(["none", skills_frames_[i][2]+1, total_frames-1]) 
-        break
-
-    i = i+1
-
-print("Skills in frames: ", skills_frames_)
-
-#Converting the frames in seconds into a new list
-for i in range(0, len(skills_frames_)):
-    skills_seconds_.append([skills_frames_[i][0], (skills_frames_[i][2]-skills_frames_[i][1])/24])
-
-print("Skills in seconds: ", skills_seconds_)
-
-gt_predicted = []
-for i in range(0, len(skills_frames_)):
-    for j in range(skills_frames_[i][1], skills_frames_[i][2]+1):
-        gt_predicted.append(skills_frames_[i][0])
-
-print("gt_predicted", gt_predicted)
-
-gt_predicted = encoding(gt_predicted)
-
-print("gt_predicted", gt_predicted)
+gt_predicted, skills_frames_, skills_seconds_ = gtc_algorithm(seconds_length, total_frames)
 
 #--------------------- PLOTTING THE GROUND TRUTH -----------------------------
 
-x2 = []
-y2 = []
-for i in range(0, len(skills_frames_)):
-    x2.append(skills_frames_[i][1])
-    x2.append(skills_frames_[i][2])
-    y2.append(skills_frames_[i][0])
-    y2.append(skills_frames_[i][0])
-ax3.plot(x2, y2)
-ax3.set_title("Ground truth - frames")
-ax3.set_xlabel("Frames")
-ax3.set_ylabel("Skills")
-
-
-x3 = []
-y3= []
-k = 0
-for i in range(0, len(skills_seconds_)):
-    x3.append(k)
-    x3.append(k+skills_seconds_[i][1])
-    y3.append(skills_seconds_[i][0])
-    y3.append(skills_seconds_[i][0])
-    k+=skills_seconds_[i][1]
-print("x1", x2)
-print("y1", y2)
-
-
-ax4.plot(x3, y3, color='red')
-ax4.set_title("Ground truth - seconds")
-ax4.set_xlabel("Seconds")
-ax4.set_ylabel("Skills")
-
+gt_plotting(skills_frames_, skills_seconds_, ax3, ax4)
 
 fig.tight_layout()
 fig.subplots_adjust(top=0.85)
@@ -418,7 +200,7 @@ fig.suptitle("Video segmentation timelines", fontsize=16, fontweight='bold')
 
 plt.show()
 
-# METRIC CALCULATION
+#--------------------- METRIC EVALUATION -----------------------------
 raw_results, raw_value = SF1(gt_predicted, raw_predicted)
 print("raw_results: ", raw_results)
 print("raw_value: ", raw_value)
