@@ -13,16 +13,15 @@ from torch.utils.tensorboard import SummaryWriter
 from matplotlib import pyplot as plt
 from vsr import vsr_algorithm
 from paper_code import viterbi, SF1
-import sys
+from augment_function import augmented
 
 
 
 writer = SummaryWriter('runs/MLP')
 
-#set a seed for reproducibility
+#----------------- set seed ------------------
 torch.manual_seed(42)
 np.random.seed(42)
-
 
 
 def hidden_blocks(input_size, output_size, activation_function):
@@ -60,11 +59,11 @@ def main():
 
     #encode the labels
     y = le.fit_transform(y)
-
+    '''
     print(le.classes_)
     for i in range(len(le.classes_)):
         print(le.classes_[i], i)
-
+    '''
     
     gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
 
@@ -74,33 +73,10 @@ def main():
     X_train, y_train = X.iloc[train_idx], y[train_idx]
     X_test, y_test = X.iloc[test_idx], y[test_idx]
 
-
- 
-    def augmented(X_train, y_train):
-        X_train_augmented = X_train.copy()
-        y_train_augmented = y_train.copy()
-
-        for _, row in X_train_augmented.iterrows(): 
-            augmentation = rd.choice(['mirror', 'shift'])
-            
-            if augmentation == 'mirror':
-                horizzontal_mirror = [k for k in range(len(X_train_augmented.columns)) if k % 3 == 0 and row[k] != 0]
-                row[horizzontal_mirror] = 1 - row[horizzontal_mirror]
-
-            else:
-                shift_factor = rd.uniform(-0.10, 0.10)
-                shift = [k for k in range(len(X_train_augmented.columns)) if row[k] != 0 and k % 3 != 2]
-                row[shift] += shift_factor
-                row[row < 0] = 0
-                row[row > 1] = 0
- 
-        X_train_augmented = X_train_augmented.append(X_train)
-        y_train_augmented = np.append(y_train_augmented, y_train)
-        
-        return X_train_augmented, y_train_augmented
-
     '''
+    print("Starting data augmentation...")
     X_train, y_train = augmented(X_train, y_train)
+    print("Dataset augmented!")
 
     X_train.to_csv('Xtrain_output.csv', index=False)
     y_train_df = pd.DataFrame(y_train, columns=['skill_id'])
@@ -116,7 +92,7 @@ def main():
     hidden_units = 1024
     num_classes = len(data['skill_id'].unique())
     lr = 0.001
-    n_epochs = 50
+    n_epochs = 10
     batch_size = 512
 
 
@@ -132,14 +108,16 @@ def main():
     '''
     train_dataset = TensorDataset(torch.FloatTensor(X_train.values).to(device), torch.LongTensor(y_train).to(device))
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    
     '''
      # Load the training data
+    
     X_train = pd.read_csv('Xtrain_output.csv')
     y_train = pd.read_csv('Ytrain_output.csv')
     train_dataset = TensorDataset(torch.FloatTensor(X_train.values).to(device), 
                                   torch.LongTensor(y_train['skill_id'].values).to(device))
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
+    
 
 
 
@@ -149,7 +127,7 @@ def main():
     gt_test = []
 
     model.to(device)
-    
+    print("Now training the model...")
     for epoch in range(n_epochs):
         running_loss = 0.0
         correct = 0
@@ -187,7 +165,7 @@ def main():
     correct = 0
     total = 0
 
-
+    
     # Load the test data
     X_test = pd.read_csv('Xtest_output.csv')
     y_test = pd.read_csv('Ytest_output.csv')
@@ -223,10 +201,18 @@ def main():
             
             gt_labels = labels.tolist()
             raw_predicted = predicted.tolist()
-            vsr_predicted = vsr_algorithm(raw_predicted)  
-        
+            vsr_output = vsr_algorithm(raw_predicted)  
             
+            if len(vsr_output) != 0:
+                vsr_predicted = vsr_output[0]
+                
+            
+
             viterbi_predicted = viterbi(probabilities, 10e-20)
+            
+            print("raw_predicted: ", raw_predicted)
+            
+            
 
             gt_test.extend(gt_labels)
             raw_pred_test.extend(raw_predicted)
@@ -253,7 +239,6 @@ def main():
 
     print('Accuracy on test data: %d %%' % (100 * correct / total))
 
-    '''
     #confusion 
     conf_mat = confusion_matrix(gt_test, raw_pred_test)
 
@@ -273,8 +258,7 @@ def main():
     f.tight_layout()
     f.savefig('confusion_matrix.png', dpi=300)
 
-
-
+    
     # METRIC CALCULATION
     raw_results, raw_value = SF1(gt_test, raw_pred_test)
     print("raw_results: ", raw_results)
@@ -339,7 +323,6 @@ def main():
 
     plt.show()
 
-    '''
 
 
     np.save('classes.npy', le.classes_)
