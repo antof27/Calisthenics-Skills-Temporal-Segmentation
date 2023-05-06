@@ -14,38 +14,24 @@ from matplotlib import pyplot as plt
 from mlp_post_edit import MLP
 from paper_code import viterbi, SF1
 from vsr import vsr_algorithm
-
+from name_corrector import name_corrector
+from encoding import encoding
+from openpose_script import openpose_script
 #i want to create an enum that contain the corrispondence between coded labels and decoded labels
 #i want 
-def encoding(list):
-    for i in range (len(list)):
-        if list[i] == "bl":
-            list[i] = 0
-        elif list[i] == "fl":
-            list[i] = 1
-        elif list[i] == "flag":
-            list[i] = 2
-        elif list[i] == "ic":
-            list[i] = 3
-        elif list[i] == "mal":
-            list[i] = 4
-        elif list[i] == "none":
-            list[i] = 5
-        elif list[i] == "oafl":
-            list[i] = 6
-        elif list[i] == "oahs":
-            list[i] = 7
-        elif list[i] == "pl":
-            list[i] = 8
-    return list
+
 
 
 #--------------------- INPUT VIDEO FROM TERMINAL, CONVERT TO 960X540 AT 24 FPS -----------------------------
+
+#if the number of arguments is not 2, the script will stop
+if len(sys.argv) != 2:
+    print("Error in the input, please insert the video path")
+    sys.exit(1)
+
 try:
     input_video = sys.argv[1]
-
     video_converted_with_ext = "video_to_inference.mp4"
-
     video_converted = video_converted_with_ext.split('.')[0]
     os.system(f"ffmpeg -i {input_video} -r 24 -vf \"scale=w=960:h=540:force_original_aspect_ratio=decrease,pad=960:540:(ow-iw)/2:(oh-ih)/2\" {video_converted_with_ext}")
 except:
@@ -54,46 +40,8 @@ except:
 
 #---------------------ELABORATING THE VIDEO WITH OPENPOSE ----------------------------
 
-video_dir = "/home/coloranto/Documents/tesi/mlp/"
-video_path = video_dir + video_converted_with_ext
-json_dir = "/home/coloranto/Documents/tesi/mlp/inference_json/"
-
-json_output_path = json_dir + video_converted + "/"
-if os.path.exists(json_output_path):
-    i = 1
-    while True:
-        new_path = json_dir + video_converted + "_" + str(i) + "/"
-        if not os.path.exists(new_path):
-            json_output_path = new_path
-            break
-        i += 1
-
-os.mkdir(json_output_path)
-
-video_output_path = f"/home/coloranto/Documents/tesi/mlp/{video_converted}.avi"
-print(video_path)
-print(json_output_path)
-print(video_output_path)
-
-os.chdir("/home/coloranto/Desktop/test/openpose/")
-
-
-try : 
-    os.system(f"./build/examples/openpose/openpose.bin \
-    -keypoint_scale 3 \
-    --model_pose BODY_25B \
-    --net_resolution -1x208 \
-    --video {video_path} \
-    --write_json {json_output_path} --display 0 \
-    --number_people_max 1 \
-    --write_video {video_output_path}")
-
-except:
-    print("Error in openpose elaboration, check the video format or the video path")
-
-print("Video correctly elaborated by openpose!\n")
-
-os.chdir("/home/coloranto/Documents/tesi/mlp/")
+#call the function that elaborates the video with openpose
+json_output_path = openpose_script(video_converted_with_ext, video_converted)
 
 #--------------------- EXTRACTING THE FEATURES FROM THE JSON FILES AND BUILDING THE DATASET -----------------------------
 print("Provo a crearlo")
@@ -360,47 +308,27 @@ print("So.. there are", n__skills, "skills in the video")
 skills_frames_ = []
 skills_seconds_ = []
 
-def name_corrector(name):
-    #print("Name inserted: ", name)
-    if name.startswith(" "):
-        name = name[1:]
-    if name.endswith(" "):
-        name = name[:-1]
-
-    if name == "planche" or name == "pl":
-        name = "pl"
-    elif name == "one arm handstand" or name == "one-arm-handstand" or name == "one_arm_handstand" or name == "oahs":
-        name = "oahs"
-    elif name == "front lever" or name == "front-lever" or name == "front_lever" or name == "front" or name == "frontlever" or name == "fl":
-        name = "fl"
-    elif name == "back lever" or name == "back-lever" or name == "back_lever" or name == "bl":
-        name = "bl"
-    elif name == "one arm front lever" or name == "one-arm-front-lever" or name == "one_arm_front_lever" or name == "oafl":
-        name = "oafl"
-    elif name == "human flag" or name == "human_flag" or name == "hf" or name == "human-flag" or name == "flag":
-        name = "flag"
-    elif name == "iron cross" or name == "iron_cross" or name == "iron-cross" or name == "cross" or name == "ic":
-        name = "ic"
-    elif name == "maltese" or name == "mal":
-        name = "mal" 
-    else:
-        print("The name you inserted is not correct, please insert the correct name")
-        name = input()
-        name = name_corrector(name)
-    #print("Name corrected: ", name, "")        
-    return name
-
 
 for i_skill in range(0, n__skills):
     print("Insert the name of the #", i_skill+1,"skill in the video")
     skill_name_ = input()
     skill_name_ = name_corrector(skill_name_)
     print("Insert the start frame of the #", i_skill+1,"skill in the video")
-    start_frame_ = int(input())
+    #if it's not a number, ask again
+    try:
+        start_frame_ = int(input())
+    except ValueError:
+        print("Please insert a number")
+        start_frame_ = int(input())
     if start_frame_ < 0:
         start_frame_ = 0
     print("Insert the end frame of the #", i_skill+1,"skill in the video")
-    end_frame_ = int(input())
+    try:
+        start_frame_ = int(input())
+    except ValueError:
+        print("Please insert a number")
+        start_frame_ = int(input())
+
     if end_frame_ > total_frames:
         end_frame_ = total_frames-1
     skills_frames_.append([skill_name_, start_frame_, end_frame_])
@@ -458,12 +386,11 @@ for i in range(0, len(skills_frames_)):
     x2.append(skills_frames_[i][2])
     y2.append(skills_frames_[i][0])
     y2.append(skills_frames_[i][0])
-
-
 ax3.plot(x2, y2)
 ax3.set_title("Ground truth - frames")
 ax3.set_xlabel("Frames")
 ax3.set_ylabel("Skills")
+
 
 x3 = []
 y3= []
@@ -474,7 +401,6 @@ for i in range(0, len(skills_seconds_)):
     y3.append(skills_seconds_[i][0])
     y3.append(skills_seconds_[i][0])
     k+=skills_seconds_[i][1]
-
 print("x1", x2)
 print("y1", y2)
 
@@ -505,7 +431,6 @@ viterbi_output = viterbi(probabilities_matrix, 10e-10)
 paper_results, paper_value = SF1(gt_predicted, viterbi_output)
 print("paper_results: ", paper_results)
 print("paper_value: ", paper_value)
-
 
 
 f.close()
