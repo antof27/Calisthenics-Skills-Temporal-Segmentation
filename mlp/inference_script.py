@@ -17,7 +17,7 @@ from zsr import zsr_algorithm
 from gtc import gtc_algorithm
 from plot import predicted_plotting, gt_plotting
 
-
+environment = os.getcwd()
 #--------------------- INPUT VIDEO FROM TERMINAL, CONVERT TO 960X540 AT 24 FPS -----------------------------
 
 #if the number of arguments is not 2, the script will stop
@@ -41,7 +41,7 @@ json_output_path = openpose_script(video_converted_with_ext, video_converted)
 
 print("Creating the labels file...")
 
-with open('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv', 'w') as f:
+with open(environment + '/video_to_predict.csv', 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['NoseX', 'NoseY', 'NoseC',
                             'LEyeX', 'LEyeY', 'LEyeC',
@@ -121,7 +121,7 @@ print("Dataframe created!\n", dataframe_local)
 
 zsr_dataframe = zsr_algorithm(dataframe_local)
 
-with open('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv', 'a') as f:
+with open(environment + '/video_to_predict.csv', 'a') as f:
     dataframe_local.to_csv(f, header=False, index=False)
 
 #--------------------- MLP INFERENCE -----------------------------
@@ -137,7 +137,7 @@ model = MLP()
 model.to(device)
 model.load_state_dict(torch.load('model.pth'))
 model.eval()
-data_to_predict = pd.read_csv('/home/coloranto/Documents/tesi/mlp/video_to_predict.csv')
+data_to_predict = pd.read_csv(environment + '/video_to_predict.csv')
 
 X_pred = data_to_predict.drop(['video_name', 'video_frame', 'skill_id'], axis=1)
 X_pred = torch.FloatTensor(X_pred.values).to(device)
@@ -151,27 +151,17 @@ with torch.no_grad():
 
 # put the predicted labels in a csv file    
 predicted_video = pd.DataFrame()
-predicted_numerical = pd.DataFrame()
-
 predicted_video['video_name'] = "video_name"
-predicted_numerical['video_name'] = "video_name"
-predicted_numerical["video_name"] = predicted.tolist()
 
 raw_predicted = predicted.tolist()
-print("len raw_predicted: ", len(raw_predicted))
 
 predicted_labels = le.inverse_transform(predicted.tolist())
 predicted_video['video_name'] = predicted_labels
 
-predicted_video['probabilities'] = probabilities.tolist()
-
-probabilities_matrix = np.zeros((total_frames, 9))
-for i in range(len(predicted_video)):
-    probabilities_matrix[i] = predicted_video.iloc[i, 1]
+probabilities_matrix = probabilities.cpu().numpy()
 
 print(probabilities_matrix)
 
-predicted_numerical.to_csv('predicted_numerical.csv', index=False)
 predicted_video.to_csv('predicted_video.csv', index=False)
 
 
