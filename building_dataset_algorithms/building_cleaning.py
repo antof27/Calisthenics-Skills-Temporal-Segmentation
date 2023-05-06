@@ -3,8 +3,14 @@ import csv
 import glob
 import re
 import pandas as pd
+import os
+from zsr import zsr_algorithm
+from comparator import comparator_function
 
-with open('dataset_elaboratedv5NI.csv', 'w') as f:
+#get the current folder
+environment = os.getcwd()
+
+with open('dataset_elaborated_tmp.csv', 'w') as f:
             writer = csv.writer(f)
             writer.writerow(['NoseX', 'NoseY', 'NoseC',
                                 'LEyeX', 'LEyeY', 'LEyeC',
@@ -41,6 +47,7 @@ def natural_sort(l):
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(l, key = alphanum_key)
 print("Starting the script...")
+
 zeros_keypoints_counter = 0
 total_keypoints_counter = 0
 dataframe_local = pd.DataFrame()
@@ -54,8 +61,9 @@ excluded_videos_frames = 0
 
 #reading all the json files
 
-input_json_folder = "/home/coloranto/Documents/tesi/pre-post_processing_algorithms/pre_processing/elaboration_pre_processing_algorithms/json_source/*"
+input_json_folder = environment + "/temp_json/*"
 print("Reading the json files from the folder : ", input_json_folder)
+
 for i, folder in enumerate(glob.glob(input_json_folder)):
     
     #sorting frames basing on the name
@@ -85,8 +93,6 @@ for i, folder in enumerate(glob.glob(input_json_folder)):
             if keypoints[i] == 0:
                 zeros_keypoints_counter += 1
             total_keypoints_counter += 1
-
-       
         
 
         video_frame = name[1]
@@ -99,32 +105,12 @@ for i, folder in enumerate(glob.glob(input_json_folder)):
         keypoints.append(video_name)
         keypoints.append(video_frame)
         
-        
 
 #---------------------------------------------------------------------------------------------------------------------
 #comparing the labels using the id of the video
-#labels filling...
-        with open('dataset_video.csv', 'r') as f:
-            reader = csv.reader(f)
-            next(reader)
-            sem = False
-            for row in reader: 
-                #print(row)
-                
-                #we are considering the _copy of the file 
-                video_name_edit = video_name
-                if video_name_edit.startswith("_"):
-                    video_name_edit = video_name_edit[1:]
+        
+        comparator_function(video_name, video_frame, keypoints)
 
-                #print("Compare ", video_name, " with ", row[6])
-                if video_name_edit == row[6] and video_frame >= int(row[3]) and video_frame <= int(row[4]):
-                    #print("Sono uguali")
-                    keypoints.append(row[5])
-                    sem = True
-                    break                
-            
-            if sem == False:
-                keypoints.append("none")
 #---------------------------------------------------------------------------------------------------------------------
 #Videos filtering algorithm
 
@@ -150,83 +136,13 @@ for i, folder in enumerate(glob.glob(input_json_folder)):
 
     else:
 
+#------------------------ Zero Sequences Reconstruction ----------------------
+        print("Starting the zero sequences reconstruction...")
+        local_dataframe_output = zsr_algorithm(dataframe_local)
+        
 #---------------------------------------------------------------------------------------------------------------------
-#Sequences reconstruction algorithm
 
-        #create a temporary dataframe
-
-        local_dataframe_output = pd.DataFrame()
-    
-        for col in dataframe_local.columns:
-            #trasform the column into a list
-            l1 = dataframe_local[col].tolist()
-            
-            if col == 75 or col == 76 or col == 77:
-        
-                local_dataframe_output[col] = l1
-                continue
-                        
-            n_zeros = 0
-            first_number = None
-            last_number = None
-            new_list = []
-
-            # manage the zeros sequences at the beginning of the list
-            while len(l1) > 0 and l1[0] == 0:
-                new_list.append(0)
-                l1.pop(0)
-
-            for i in range(len(l1)):
-                
-                if l1[i] == 0:
-                    n_zeros += 1
-                    if n_zeros == 1:
-                        first_number = l1[i-1]
-                else:
-                    if n_zeros == 0:
-                        new_list.append(l1[i])
-
-                    else:
-                        last_number = l1[i]
-                        range_ = last_number - first_number
-                        if 1 == 0:
-                            step = (last_number - first_number) / (n_zeros + 1)
-                            for j in range(1, n_zeros + 1):
-                                new_list.append(first_number + j * step)
-                            new_list.append(last_number)
-                        else:
-                            for j in range(1, n_zeros + 1):
-                                new_list.append(0)
-                            new_list.append(last_number)
-                            
-                        n_zeros = 0
-        
-            # manage the zeros sequences at the ending of the list
-            while len(l1) > 0 and l1[-1] == 0:
-                new_list.append(0)
-                l1.pop()
-
-            
-            
-            local_dataframe_output[col] = new_list
-        
-        #mirroring the keypoints
-        '''
-        mirror = input()
-        if mirror == "y":
-            for index, row in dataframe_local.iterrows():
-                mirrored_row = row
-                for i in range(len(row)):
-                    if i == 75 or i == 76 or i == 77:
-                        continue
-                    if i % 3 == 0:
-                        if row[i] != 0:
-                            mirrored_row[i] = 1 - row[i]
-
-                local_dataframe_output = local_dataframe_output.append(mirrored_row, ignore_index=True)
-        '''    
-#---------------------------------------------------------------------------------------------------------------------
-        with open('dataset_elaboratedv5NI.csv', 'a') as f:
+        with open('dataset_elaborated_tmp.csv', 'a') as f:
             dataframe_local.to_csv(f, header=False, index=False)
         print("The current video has been added to dataset!\n")
     
@@ -242,3 +158,4 @@ print("Excluded videos: ", excluded_videos)
 print("Excluded videos frames: ", excluded_videos_frames)
 
 f.close()
+
