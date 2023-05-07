@@ -1,7 +1,7 @@
 #--------------------- VIDEO SEGMENT RECONSTRUCTION -----------------------------
 from statistics import mode
 import pandas as pd
-import numpy as np
+
 
 def encoding(list):
     for i in range (len(list)):
@@ -44,16 +44,10 @@ def filtering(pointer, patch_mode, modes, index1, index2, index3, index4, index5
     return modes
 
 
-
-#--------------------- FIRST STEP -----------------------------
-def vsr_algorithm(raw_predicted):
-    total_frames = len(raw_predicted)
-    raw_predicted = pd.DataFrame(raw_predicted)
-    
+def windows_mode(raw_predicted, window_size=12):
     modes = []
-    #modes_2_temp = []
+    
     #set the default size to 15
-    window_size = 15
     temp_mode = []
 
     i = window_size
@@ -65,9 +59,8 @@ def vsr_algorithm(raw_predicted):
             i+=1
         
         else:
-            
             min_index = values[values==current_mode].index.min()
-            window_size = 15
+            window_size = 12
             i += window_size-2
             max_index = values[values==current_mode].index.max()
             
@@ -76,76 +69,110 @@ def vsr_algorithm(raw_predicted):
             
             temp_mode = [current_mode, min_index, max_index] 
             modes.append(temp_mode)
-            
-            #modes_2_temp.append(current_mode)
-
-    #--------------------- SECOND STEP -----------------------------
     
-    #print("mode", modes)
+    return modes
 
-    for p in range(0, len(modes)):
-        patch_mode = []
-        
-        if p == 0:
-            filtering(p, patch_mode, modes, p, p+1, p+2, p+3)
-        elif p == 1:
-            filtering(p, patch_mode, modes, p-1, p, p+1, p+2)
-        elif p == len(modes)-2:
-            filtering(p, patch_mode, modes, p-1, p, p+1, p-2)
-        elif p == len(modes)-1:
-            filtering(p, patch_mode, modes, p-2, p-1, p, p-3)
-        else:
-            filtering(p, patch_mode, modes, p-1, p, p+1, p-2, p+2)
-        
-    #print(modes)
 
-    #--------------------- THIRD STEP -----------------------------
+def noise_removal(modes):
 
+    if len(modes) > 3:
+        for p in range(0, len(modes)):
+            patch_mode = []
+            if p == 0:
+                filtering(p, patch_mode, modes, p, p+1, p+2, p+3)
+            elif p == 1:
+                filtering(p, patch_mode, modes, p-1, p, p+1, p+2)
+            elif p == len(modes)-2:
+                filtering(p, patch_mode, modes, p-1, p, p+1, p-2)
+            elif p == len(modes)-1:
+                filtering(p, patch_mode, modes, p-2, p-1, p, p-3)
+            else:
+                filtering(p, patch_mode, modes, p-1, p, p+1, p-2, p+2)
+
+    return modes
+
+
+def timeline_reconstruction(modes):
+    print("Starting timeline reconstruction")
     output = []
     output_l = []
     j = 0
     breakp = False
+    print("modes: ", modes)
     while j < len(modes)-1:
         skill = modes[j][0]
         if j == 0:
             start = 0
         else:
             start = modes[j][1]
+        
         while j < len(modes)-1 and modes[j][0] == skill:
             j += 1
-
+            
             if j == len(modes)-1:
+                
                 end = modes[j][2]
                 breakp = True
-
+            
         
         if breakp == False:
+            
             end = (modes[j][1]-1)
         
         output.append([skill, start, end])
         milliseconds = ((end+1)-start)*(1/24)
         output_l.append([skill, milliseconds])
+     
     
-    #print("\nLista finale: \n")
-    #print(output)
-
-    #print("\nLista finale in millisecondi: \n")
-    #print(output_l)
+    print("\nLista finale: \n")
+    print(output)
+    '''
+    print("\nLista finale in millisecondi: \n")
+    print(output_l)
     
-    #total_length = total_frames*(1/24)
-    #print("total length in seconds: ", total_length)
+    total_length = total_frames*(1/24)
+    print("total length in seconds: ", total_length)
+    '''
+    print("Ending timeline reconstruction")
+    return output, output_l
 
+
+
+
+
+def vsr_algorithm(raw_predicted):
+    #raw_predicted should be a dataframe, if it's not a list
+    #it's automatically converted to a dataframe
+    
+    if type(raw_predicted) == list:
+        raw_predicted = pd.DataFrame(raw_predicted)
+    
+    total_frames = len(raw_predicted)
+    windows_size = 12
+
+    if total_frames < windows_size:
+        print("There are not enough frames to apply the algorithm")
+        return raw_predicted
+#--------------------- FIRST STEP -----------------------------
+    
+    modes = windows_mode(raw_predicted, windows_size)
+
+#--------------------- SECOND STEP -----------------------------    
+    
+    modes = noise_removal(modes)
+
+#--------------------- THIRD STEP -----------------------------
+
+    output, output_l = timeline_reconstruction(modes)
+    
     vsr_predicted = []
     for i in range(0, len(output)):
         for j in range(output[i][1], output[i][2]+1):
             vsr_predicted.append(output[i][0])
 
-
     vsr_predicted = encoding(vsr_predicted)
 
-    #print("vsr_predicted", vsr_predicted)
-
-    return vsr_predicted
+    return vsr_predicted, output, output_l
 
 '''
 list1 = ["none",
@@ -572,6 +599,7 @@ list1 = ["none",
 "none",
 "none",
 "none","none","none"]
+
 
 final_list = vsr_algorithm(list1)
 print(final_list)
