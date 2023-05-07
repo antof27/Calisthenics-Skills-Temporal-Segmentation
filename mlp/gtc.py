@@ -1,4 +1,4 @@
-from name_corrector import name_corrector
+from name_checker import name_checker
 from encoding import encoding
 
 
@@ -19,7 +19,7 @@ def gtc_algorithm(seconds_length, total_frames):
     for i_skill in range(0, n__skills):
         print("Insert the name of the #", i_skill+1,"skill in the video")
         skill_name_ = input()
-        skill_name_ = name_corrector(skill_name_)
+        skill_name_ = name_checker(skill_name_)
         print("Insert the start frame of the #", i_skill+1,"skill in the video")
         #if it's not a number, ask again
         try:
