@@ -1,5 +1,6 @@
 import numpy as np   
 import random as rd
+import pandas as pd
 
 def augmented(X_train, y_train):
         X_train_augmented = X_train.copy()
@@ -21,21 +22,18 @@ def augmented(X_train, y_train):
  
         X_train_augmented = X_train_augmented.append(X_train)
         y_train_augmented = np.append(y_train_augmented, y_train)
-        
         return X_train_augmented, y_train_augmented
 
 
-
-
 '''
-#call the function augmented and save the augmented dataset
 X_train = pd.read_csv('mini_dataset.csv')
 #drop the columns video_name, video_frame and skill_id
 X_train = X_train.drop(['video_name', 'video_frame', 'skill_id'], axis=1)
 
 y_train = pd.read_csv('mini_y.csv')
 
-X_train, y_train = augmented(X_train, y_train)
+X_train, y_train = augment(X_train, y_train)
 X_train.to_csv('Augmented_provaaaaa.csv', index=False)
 pd.DataFrame(y_train, columns=['skill_id']).to_csv('y_train_provaaaa.csv', index=False)
+
 '''
