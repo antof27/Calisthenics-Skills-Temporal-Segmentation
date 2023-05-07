@@ -137,19 +137,19 @@ def main():
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             
-            
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
             
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-
             running_loss += loss.item()
+           
             if i % batch_size == batch_size - 1:
                 acc = 100 * correct / total
+                #print the loss and the accuracy for batch_size = 512
+
                 print('[Epoch %d, Batch %d] Loss: %.3f Accuracy: %.3f%%' % 
                     (epoch + 1, i + 1, running_loss / batch_size, acc))
                 writer.add_scalar('Loss/train', running_loss / batch_size, epoch * len(train_loader) + i)
@@ -158,6 +158,7 @@ def main():
                 running_loss = 0.0
                 correct = 0
                 total = 0
+     
 
 
     # Test the model
@@ -201,17 +202,12 @@ def main():
             
             gt_labels = labels.tolist()
             raw_predicted = predicted.tolist()
-            vsr_output = vsr_algorithm(raw_predicted)  
-            
-            if len(vsr_output) != 0:
-                vsr_predicted = vsr_output[0]
-                
-            
-
-            viterbi_predicted = viterbi(probabilities, 10e-20)
+            #check if raw_predicted is an empty list
             
             print("raw_predicted: ", raw_predicted)
-            
+            vsr_output = vsr_algorithm(raw_predicted)  
+            vsr_predicted = vsr_output[0]          
+            viterbi_predicted = viterbi(probabilities, 10e-20)
             
 
             gt_test.extend(gt_labels)
