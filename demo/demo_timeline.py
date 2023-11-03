@@ -5,14 +5,14 @@ import os
 def create_timeline_image(list_names, skills, current_frame):
     # Define the dimensions and colors for the image
     width = 1820  # Image width in pixels
-    height = 250  # Image height in pixels
+    height = 290  # Image height in pixels
     bg_color = (255, 255, 255)  # Background color (white)
     legend_width = 80  # Width of the legend
-    list_name_width = 60  # Width of the list name section
+    list_name_width = 120  # Width of the list name section
 
     # Define the skill names and colors
-    skill_names = ["bl", "fl", "flag", "ic", "mal", "none", "oafl", "oahs", "pl"]
-    skill_colors = [(220, 20, 60), (21, 176, 26), (3, 67, 223), (255, 170, 0), (19, 185, 191), (60, 60, 60), (169, 86, 30), (249, 115, 6), (218, 112, 214)]
+    skill_names = ["BL", "FL", "FLAG", "IC", "MAL", "NONE", "OAFL", "OAHS", "PL", "VSIT"]
+    skill_colors = [(220, 20, 60), (21, 176, 26), (3, 67, 223), (255, 170, 0), (19, 185, 191), (60, 60, 60), (169, 86, 30), (249, 115, 6), (218, 112, 214), (128, 0, 128)]
 
     # Calculate the width of each frame based on the number of frames and the image width
     frame_width = (width - list_name_width - (legend_width)) // len(skills[0])
@@ -25,7 +25,7 @@ def create_timeline_image(list_names, skills, current_frame):
     environment = os.path.dirname(os.path.abspath(__file__))  # Get the current file directory
     font_path = os.path.join(environment, "arial.ttf")
     font_size1 = 20
-    font_size2 = 15
+    font_size2 = 17
     font1 = ImageFont.truetype(font_path, size=font_size1)
     font2 = ImageFont.truetype(font_path, size=font_size2)
 
@@ -52,19 +52,19 @@ def create_timeline_image(list_names, skills, current_frame):
 
             frame_y = y + (j * (height // len(list_names)))
             frame_height = height // len(list_names)
-            image.paste(color, (x, frame_y, x + frame_width, frame_y + frame_height))
+            image.paste(color, (x, frame_y+2, x + frame_width, frame_y + frame_height-2))
 
         # Draw the cursor on the current frame
         if i == current_frame:
             cursor_x = x
             cursor_y = y
             cursor_height = height
-            draw.rectangle([(cursor_x, cursor_y), (cursor_x + frame_width, cursor_y + cursor_height)], fill=(255, 255, 255))
+            draw.rectangle([(cursor_x-1, cursor_y), (cursor_x + frame_width+1, cursor_y + cursor_height)], fill=(255, 255, 255))
 
     # Draw the legend on the right side
     legend_x = x + (frame_width + 2)
     legend_y = 0
-    legend_height = height
+    legend_height = height - 4
     draw.rectangle([(legend_x, legend_y+2), (width, legend_y + legend_height+2)], fill=bg_color)
 
     # Draw the legend labels
@@ -72,6 +72,6 @@ def create_timeline_image(list_names, skills, current_frame):
     for i, color in enumerate(skill_colors):
         label_y = legend_y + (i * label_height)
         draw.rectangle([(legend_x, label_y+2), (width, label_y + label_height+2)], fill=color)
-        draw.text((legend_x + label_height, label_y+2), skill_names[i], fill=(255, 255, 255), font=font2)
+        draw.text((legend_x + label_height-15, label_y+5), skill_names[i], fill=(255, 255, 255), font=font2)
 
     return image

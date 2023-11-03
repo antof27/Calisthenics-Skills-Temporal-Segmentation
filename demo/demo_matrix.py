@@ -2,7 +2,7 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 
 def decoding(idx):
-    skill_colors = [(220, 20, 60), (21, 176, 26), (3, 67, 223), (255, 170, 0), (19, 185, 191), (60, 60, 60), (169,86,30), (249, 115, 6), (218, 112, 214)]
+    skill_colors = [(220, 20, 60), (21, 176, 26), (3, 67, 223), (255, 170, 0), (19, 185, 191), (60, 60, 60), (169,86,30), (249, 115, 6), (218, 112, 214), (128, 0, 128)]
     if idx == 0:
         clr = skill_colors[0]
     elif idx == 1:
@@ -21,8 +21,34 @@ def decoding(idx):
         clr = skill_colors[7]
     elif idx == 8:
         clr = skill_colors[8]
+    elif idx == 9:
+        clr = skill_colors[9]
 
     return clr
+
+
+def encoding(item):
+    if item == 0:
+        item = "bl"
+    elif item == 1:
+        item = "fl"
+    elif item == 2:
+        item = "flag"
+    elif item == 3:
+        item = "ic"
+    elif item == 4:
+        item = "mal"
+    elif item == 5:
+        item = "none"
+    elif item == 6:
+        item = "oafl"
+    elif item == 7:
+        item = "oahs"
+    elif item == 8:
+        item = "pl"
+    elif item == 9:
+        item = "vsit"
+    return item
 
 def draw_horizontal_bars(matrix, est_list, gt_list):
     # Dimensions of the image
@@ -30,17 +56,19 @@ def draw_horizontal_bars(matrix, est_list, gt_list):
     image_height = 540
     environment = os.getcwd()
     font_size = 25
+    font_size2 = 20
     # Number of bars and height of each bar
     font_path = environment + "/arial.ttf"
     font = ImageFont.truetype(font_path, font_size)
-    raw_text = "RAW probabilities"
-    est_text = "VSR"
+    font2 = ImageFont.truetype(font_path, font_size2)
+    raw_text = "Raw probabilities"
+    est_text = "Heuristic"
     gt_text = "GT"
     image = Image.new("RGB", (image_width, image_height), "white")
     draw = ImageDraw.Draw(image)
 
     draw.text((10, 5), raw_text, fill=(0,0,0), font=font)
-    draw.text((290, 5), est_text, fill=(0,0,0), font=font)
+    draw.text((260, 5), est_text, fill=(0,0,0), font=font)
     draw.text((390, 5), gt_text, fill=(0,0,0), font=font)
     
     num_bars = len(matrix[0])
@@ -76,6 +104,10 @@ def draw_horizontal_bars(matrix, est_list, gt_list):
             # Draw the bar
             color = decoding(col_idx)
             draw.rectangle([(x1, y1), (x2, y2)], fill=color)
+            #draw the text of the skill
+            text_encoded = encoding(col_idx)
+            text_encoded = text_encoded.upper()
+            draw.text((x1+10, y1+7), text_encoded, fill=(255,255,255), font=font)
 
     return image
 '''

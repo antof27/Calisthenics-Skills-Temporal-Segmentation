@@ -20,11 +20,13 @@ def decoding(value):
         value = "oahs"
     elif value == 8:
         value = "pl"
+    elif value == 9:
+        value = "vsit"
     return value
 
 def get_color(item):
     
-    skill_colors = [(220, 20, 60), (21, 176, 26), (3, 67, 223), (255, 170, 0), (19, 185, 191), (60, 60, 60), (169,86,30), (249, 115, 6), (218, 112, 214)]
+    skill_colors = [(220, 20, 60), (21, 176, 26), (3, 67, 223), (255, 170, 0), (19, 185, 191), (60, 60, 60), (169,86,30), (249, 115, 6), (218, 112, 214), (128, 0, 128)]
     if item == "bl" or item == 0:
         clr = skill_colors[0]
     elif item == "fl" or item == 1:
@@ -43,17 +45,20 @@ def get_color(item):
         clr = skill_colors[7]
     elif item == "pl" or item == 8:
         clr = skill_colors[8]
+    elif item == "vsit" or item == 9:
+        clr = skill_colors[9]
     return clr
 
 
 def print_element_with_counter(list1, list2):
-    width = 390
+    width = 410
     height = 540
     font_size = 30
     environment = os.getcwd()
     font_path = environment + "/arial.ttf"
     font = ImageFont.truetype(font_path, font_size)
-    gt_text = "VSR"
+    classes_text = "Classes"
+    gt_text = "Heuristic"
     est_text = "GT"
     bar_list = []
     l1 = []
@@ -75,8 +80,9 @@ def print_element_with_counter(list1, list2):
         image = Image.new("RGB", (width, height), (255, 255, 255))
         draw = ImageDraw.Draw(image)
         
-        draw.text((100, 5), gt_text, fill=(0,0,0), font=font)
-        draw.text((250, 5), est_text, fill=(0,0,0), font=font)
+        draw.text((10, 5), classes_text, fill=(0,0,0), font=font)
+        draw.text((155, 5), gt_text, fill=(0,0,0), font=font)
+        draw.text((310, 5), est_text, fill=(0,0,0), font=font)
 
         if val1 != 5 and val1 not in bar_list:
             bar_list.append(val1)
@@ -134,33 +140,34 @@ def print_element_with_counter(list1, list2):
         for j in range(len(bar_list)):
 
             color = get_color(bar_list[j])
-            draw.rectangle([(5, y_bar), (380, y_bar+35)], color)
+            draw.rectangle([(5, y_bar), (400, y_bar+35)], color)
 
 
             label_text = decoding(bar_list[j])
-            draw.text((10, y_bar), label_text, fill=(230,230,230), font=font)
+            label_text = label_text.upper()
+            draw.text((40, y_bar), label_text, fill=(250,250,250), font=font)
             y_bar += 75
         
         y1 = 75
         for k in range(len(l1)):
-            v1 = round(l1[k], 3)
+            v1 = round(l1[k], 2)
             text1 = str(v1)
             #print("text1", text1)
-            draw.text((100, y1), text1, fill=(230, 230, 230), font=font)
+            draw.text((185, y1), text1, fill=(250, 250, 250), font=font)
             y1 += 75
         
         y2 = 75
         for l in range(len(l2)):
-            v2 = round(l2[l], 3)
+            v2 = round(l2[l], 2)
             text2 = str(v2)
             #print("text2", text2)
-            draw.text((250, y2), text2, fill=(230, 230, 230), font=font)
+            draw.text((300, y2), text2, fill=(250, 250, 250), font=font)
             y2 += 75
 
         print("l1", l1)
         print("l2", l2)
         print("bar_list", bar_list)
-        image.save(f"./demo/lists/image_{i}.png")
+        image.save(f"./demo/lists/image_{i:04}.png")
         prev_value1 = val1
         prev_value2 = val2
         prev_bar = val1
@@ -174,7 +181,9 @@ list1 = [0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 1, 1, 1, 1, 7, 7, 7, 7, 7, 7,
 list2 = [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,7,7]
 
 
-print_element_with_counter(list1, list2)
+#print_element_with_counter(list1, list2)
+
+
 
 
 
