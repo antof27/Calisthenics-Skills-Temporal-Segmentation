@@ -10,7 +10,7 @@ from comparator import comparator_function
 #get the current folder
 environment = os.getcwd()
 
-with open('dataset_elaborated_tmp.csv', 'w') as f:
+with open('dataset_v8.51.csv', 'w') as f:
             writer = csv.writer(f)
             writer.writerow(['NoseX', 'NoseY', 'NoseC',
                                 'LEyeX', 'LEyeY', 'LEyeC',
@@ -61,7 +61,7 @@ excluded_videos_frames = 0
 
 #reading all the json files
 
-input_json_folder = environment + "/temp_json/*"
+input_json_folder = environment + "/json_source/*"
 print("Reading the json files from the folder : ", input_json_folder)
 
 for i, folder in enumerate(glob.glob(input_json_folder)):
@@ -119,10 +119,10 @@ for i, folder in enumerate(glob.glob(input_json_folder)):
         #write the keypoints in the csv file
 
     global_frame_counter += frame_counter    
-    #print("Processing the video... : ", video_name)
-    #print("Total zeros keypoints : ", zeros_keypoints_counter)
-    #print("Total keypoints : ", total_keypoints_counter)
-    #print("Video frames : ", frame_counter)
+    print("Processing the video... : ", video_name)
+    print("Total zeros keypoints : ", zeros_keypoints_counter)
+    print("Total keypoints : ", total_keypoints_counter)
+    print("Video frames : ", frame_counter)
 
     if total_keypoints_counter == 0:
         print("The current video has no frames!", video_name)
@@ -137,13 +137,14 @@ for i, folder in enumerate(glob.glob(input_json_folder)):
     else:
 
 #------------------------ Zero Sequences Reconstruction ----------------------
-        print("Starting the zero sequences reconstruction...")
-        local_dataframe_output = zsr_algorithm(dataframe_local)
+        #print("Starting the zero sequences reconstruction...")
+        #local_dataframe_output = zsr_algorithm(dataframe_local)
         
 #---------------------------------------------------------------------------------------------------------------------
 
-        with open('dataset_elaborated_tmp.csv', 'a') as f:
+        with open('dataset_v8.50.csv', 'a') as f:
             dataframe_local.to_csv(f, header=False, index=False)
+
         print("The current video has been added to dataset!\n")
     
     dataframe_local = pd.DataFrame()
